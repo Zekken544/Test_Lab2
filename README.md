@@ -1,57 +1,60 @@
-# Лаб 02 — k6 Load Testing B222270046 М. Билгүүн-Эрдэнэ
+# Лаб 02 — k6 Load Testing
+**B222270046 М. Билгүүн-Эрдэнэ**
 
 ## Орчин
-```
+
+```text
 k6.exe v2.2.0 (commit/00a9a1b7f5, go1.26.5, windows/amd64)
 ```
 
-## Тест хийсэн сервер
-`https://test.k6.io`
+Сервер: https://test.k6.io
 
-## Тестийн скрипт
-```javascript
-import http from 'k6/http';
-import { sleep } from 'k6';
+Скриптүүд: [Үндсэн](test-basic.js), [Stages](test-stages.js), [Threshold](test-threshold.js). Тестүүдэд `check()` ашиглан status 200 эсэхийг шалгаж, iteration бүрд `sleep(1)` хийсэн.
 
-export const options = {
-  vus: 1, // 1 → 5 → 30 → 100 болгож тус тусад нь ажиллуулсан
-  duration: '30s',
-  thresholds: {
-    http_req_duration: ['p(95)<332'], // baseline p95 (221.59ms) × 1.5
-  },
-};
+## Ачааллын харьцуулалт
 
-export default function () {
-  http.get('https://test.k6.io');
-  sleep(1);
-}
-```
+5, 30, 100 VU тус бүрээр **1 минут** ажиллуулсан.
 
-## Ачааллын харьцуулалт (1 → 5 → 30 → 100 VU)
+| VU | p90 (ms) | p95 (ms) | Max (ms) | Requests | Throughput (req/s) | Error rate |
+|---|---:|---:|---:|---:|---:|---:|
+| 5 | 225.41 | 226.27 | 232.05 | 470 | 7.70 | 0.00% |
+| 30 | 226.06 | 226.64 | 232.74 | 2820 | 46.07 | 0.00% |
+| 100 | 226.19 | 227.57 | 429.85 | 9358 | 152.69 | 0.00% |
 
-| VU  | p90 (ms) | p95 (ms) | max (ms) | Requests | Throughput (req/s) | Error rate  |
-|-----|----------|----------|----------|----------|---------------------|------------|
-| 1   | 221.48   | 221.59   | 221.83   | 46       | 1.52                | 0.00%      |
-| 5   | 225.55   | 226.29   | 229.     | 230      | 7.57                | 0.00%      |
-| 30  | 226.19   | 226.59   | 473.93   | 1380     | 44.96               | 0.00%      |
-| 100 | 226.18   | 226.85   | 238.44   | 4626     | 147.94              | 0.00%      |
+Бүтэн гаралт: [5 VU](results/05vu.txt), [30 VU](results/30vu.txt), [100 VU](results/100vu.txt).
 
-Файлууд: `results/run-01vu.txt`, `results/run-05vu.txt`, `results/run-30vu.txt`, `results/run-100vu.txt`
+## Stages туршилт
 
-## SLO (Threshold) тохиргоо ба тайлбар
+Ачааллыг **30 секундэд 5 → 1 минутад 30 → 30 секундэд 100 → 30 секундэд 0 VU** болгон өөрчилсөн.
 
-`p(95)<332ms` гэсэн threshold-ыг зааврын дагуу санамсаргүй тоо биш, харин **1 VU-ийн baseline** дээр үндэслэн сонгосон:
+Нэгтгэсэн p95 = **226.67 ms**, throughput = **47.08 req/s**, нийт хүсэлт = **7094**, error rate = **0.00%**. Энэ summary-г дээрх тусдаа хэмжилтийн хүснэгтэд ашиглаагүй.
 
-- Baseline (1 VU) p95 = `221.59ms`
-- SLO = baseline × 1.5 ≈ `332ms`
+Бүтэн гаралт: [stages.txt](results/stages.txt).
 
-### PASS тест
-`results/run-threshold-pass.txt` — 1 VU дээр p(95)=224.09ms < 332ms → **PASS**
+## SLO ба PASS / FAIL
 
-### FAIL тест
-`results/run-threshold-fail.txt` — санаатайгаар хатуу threshold (`p(95)<50`) тавихад p(95)=223.96ms → **FAIL**, k6 `ERRO[...] thresholds on metrics 'http_req_duration' have been crossed` гэж алдаа буцаасан.
+**5 VU / 30 секундийн baseline** p95 = **226.70 ms**. Ачаалал өсөхөд baseline-аас 50% өсөх зай өгч, SLO-г **226.70 × 1.5 = 340.05 ms** гэж сонгосон.
+
+Baseline гаралт: [run-05vu-baseline.txt](results/run-05vu-baseline.txt).
+
+Threshold тестүүдийг тус бүр **30 VU / 1 минут** ажиллуулж, `http_req_failed: ['rate<0.01']` шаардлага нэмсэн.
+
+| Тест | Latency threshold | Бодит p95 | Error rate | Үр дүн |
+|------|-------------------|-----------|------------|--------|
+| PASS | `p(95)<340.05` | 226.12 ms | 0.00% | Хоёр threshold биелсэн |
+| FAIL | `p(95)<50` | 227.03 ms | 0.00% | Latency threshold зөрчигдсөн |
+
+FAIL тестэд `thresholds on metrics 'http_req_duration' have been crossed` гэсэн алдаа гарсан.
+
+Бүтэн гаралт: [PASS](results/threshold-pass.txt), [FAIL](results/threshold-fail.txt).
+
+## Screemshot зургууд
+
+- [Baseline](results/screenshots/baseline-05vu.png)
+- [5 VU](results/screenshots/05vu.png), [30 VU](results/screenshots/30vu.png), [100 VU](results/screenshots/100vu.png)
+- [Stages](results/screenshots/stages.png)
+- [PASS](results/screenshots/threshold-pass.png), [FAIL](results/screenshots/threshold-fail.png)
 
 ## Дүгнэлт
 
-Энэхүү лабораторийн ажлаар test.k6.io сайт руу 1, 5, 30, 100 виртуал хэрэглэгчээр ачаалал өгч, `latency, throughput, error rate` гэсэн 3 үндсэн хэмжүүрийг хэмжсэн. Үр дүнгээс харахад ачаалал нэмэгдэхэд `p90` болон `р95` latency бараг өөрчлөгдөөгүй (221мс-аас 227мс хүртэл л нэмэгдсэн) бөгөөд энэ нь сервер энэ түвшний ачааллыг амархан даах чадвартайг харуулсан. `Throughput` нь VU тоотой шууд пропорциональ өссөн. 1 VU дээр 1.52 req/s байсан бол 100 VU дээр 147.94 req/s болж өссөн. Error rate бүх тохиолдолд 0.00% байсан нь алдаа гараагүй, сервер тогтвортой ажилласныг илтгэнэ. SLO-г 1 VU-ийн baseline дээр үндэслэн `(baseline × 1.5)` тохируулж, threshold-ын PASS болон FAIL хоёр тохиолдлыг тус тусад нь бодитоор үзүүлсэн. Хамгийн их (max) утга 30 VU дээр 473.93мс хүртэл огцом өссөн нь p95-д багтаагүй, өөрөөр хэлбэл хамгийн удаан 5%-ийн нэг тохиолдол байж магадгүй. Ерөнхийдөө 
-`test.k6.io` энэ хэмжээний ачааллын хувьд `breaking point` -д хүрээгүй тул илүү өндөр VU-ээр цаашид туршиж болно. Энэхүү дадлагаар k6-ийн p90/p95, threshold, VU зэрэг ойлголтуудыг бодит тоон дээр ажиллуулж, зөв ойлгож авсан.
+Энэ лабораториор k6 ашиглан latency, throughput болон error rate хэмжсэн. Ачааллыг 5-аас 100 VU болгоход p95 нь 226.27 ms-ээс 227.57 ms болж бага өөрчлөгдсөн. Throughput нь 7.70-аас 152.69 req/s болж, VU тоотой ойролцоогоор пропорциональ өссөн. HTTP error rate бүх туршилтад 0.00% байсан бөгөөд status 200 check-үүд амжилттай болсон. 100 VU дээр max latency 429.85 ms хүрсэн нь p95-аас гадна хамгийн удаан хүсэлтийг мөн анхаарах хэрэгтэйг харуулсан. Stages туршилтын нийт p95 нь 226.67 ms байсан. 5 VU baseline-аас тооцсон 340.05 ms SLO болон 1%-аас бага error rate-ийн шаардлага PASS тестэд биелсэн. Харин 50 ms босготой тест HTTP алдаагүй байсан ч latency шаардлага зөрчигдөж FAIL болсон. Ингэснээр threshold нь CI pipeline-д гүйцэтгэлийн quality gate болж болохыг ойлгосон. Туршсан ачааллын хүрээнд p95 мэдэгдэхүйц муудаагүй боловч эдгээр богино тестээр серверийн дээд хүчин чадлыг тогтоох боломжгүй.
